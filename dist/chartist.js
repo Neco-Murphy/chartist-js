@@ -2926,7 +2926,14 @@
           positions[labelAxis.counterUnits.pos + '1'] = options.stackBars ? previousStack : zeroPoint;
           positions[labelAxis.counterUnits.pos + '2'] = options.stackBars ? stackedBarValues[valueIndex] : projected[labelAxis.counterUnits.pos];
 
-          bar = seriesGroups[seriesIndex].elem('line', positions, options.classNames.bar).attr({
+          var classToApply = '';
+          if( Array.isArray(options.classNames.bar) ){
+            classToApply = options.classNames.bar[valueIndex];
+          }else{
+            classToApply = options.classNames.bar;
+          }
+          
+          bar = seriesGroups[seriesIndex].elem('line', positions, classToApply).attr({
             'value': value,
             'meta': Chartist.getMetaData(series, valueIndex)
           }, Chartist.xmlNs.uri);
