@@ -679,10 +679,13 @@
           ], eventEmitter);
         }
 
+        options.classNames.labelExtra = options.classNames.labelExtra || [];
+
         if(axisOptions.showLabel) {
           Chartist.createLabel(projectedValue, index, labelValues, axis, axisOptions.offset, axis.labelOffset, labelGroup, [
             options.classNames.label,
-            options.classNames[axis.units.dir]
+            options.classNames[axis.units.dir],
+            options.classNames.labelExtra[index]
           ], useForeignObject, eventEmitter);
         }
       });
@@ -790,6 +793,111 @@
       }
 
       return d;
+    };
+
+  }(window, document, Chartist));
+  ;/**
+   * Chartist path interpolation functions.
+   *
+   * @module Chartist.Interpolation
+   */
+  /* global Chartist */
+  (function(window, document, Chartist) {
+    'use strict';
+
+    Chartist.Interpolation = {};
+
+    /**
+     * This interpolation function does not smooth the path and the result is only containing lines and no curves.
+     *
+     * @memberof Chartist.Interpolation
+     * @return {Function}
+     */
+    Chartist.Interpolation.none = function() {
+      return function cardinal(pathCoordinates) {
+        var path = new Chartist.Svg.Path().move(pathCoordinates[0], pathCoordinates[1]);
+
+        for(var i = 3; i < pathCoordinates.length; i += 2) {
+          path.line(pathCoordinates[i - 1], pathCoordinates[i]);
+        }
+
+        return path;
+      };
+    };
+
+    /**
+     * Cardinal / Catmull-Rome spline interpolation is the default smoothing function in Chartist. It produces nice results where the splines will always meet the points. It produces some artifacts though when data values are increased or decreased rapidly. The line may not follow a very accurate path and if the line should be accurate this smoothing function does not produce the best results.
+     *
+     * Cardinal splines can only be created if there are more than two data points. If this is not the case this smoothing will fallback to `Chartist.Smoothing.none`.
+     *
+     * All smoothing functions within Chartist are factory functions that accept an options parameter. The cardinal interpolation function accepts one configuration parameter `tension`, between 0 and 1, which controls the smoothing intensity.
+     *
+     * The default configuration:
+     * ```javascript
+     * var defaultOptions = {
+     *   tension: 1
+     * };
+     * ```
+     *
+     * @memberof Chartist.Interpolation
+     * @param {Object} options The options of the cardinal factory function.
+     * @return {Function}
+     */
+    Chartist.Interpolation.cardinal = function(options) {
+      var defaultOptions = {
+        tension: 1
+      };
+
+      options = Chartist.extend({}, defaultOptions, options);
+
+      var t = Math.min(1, Math.max(0, options.tension)),
+        c = 1 - t;
+
+      return function cardinal(pathCoordinates) {
+        // If less than two points we need to fallback to no smoothing
+        if(pathCoordinates.length <= 4) {
+          return Chartist.Interpolation.none()(pathCoordinates);
+        }
+
+        var path = new Chartist.Svg.Path().move(pathCoordinates[0], pathCoordinates[1]),
+          z;
+
+        for (var i = 0, iLen = pathCoordinates.length; iLen - 2 * !z > i; i += 2) {
+          var p = [
+            {x: +pathCoordinates[i - 2], y: +pathCoordinates[i - 1]},
+            {x: +pathCoordinates[i], y: +pathCoordinates[i + 1]},
+            {x: +pathCoordinates[i + 2], y: +pathCoordinates[i + 3]},
+            {x: +pathCoordinates[i + 4], y: +pathCoordinates[i + 5]}
+          ];
+          if (z) {
+            if (!i) {
+              p[0] = {x: +pathCoordinates[iLen - 2], y: +pathCoordinates[iLen - 1]};
+            } else if (iLen - 4 === i) {
+              p[3] = {x: +pathCoordinates[0], y: +pathCoordinates[1]};
+            } else if (iLen - 2 === i) {
+              p[2] = {x: +pathCoordinates[0], y: +pathCoordinates[1]};
+              p[3] = {x: +pathCoordinates[2], y: +pathCoordinates[3]};
+            }
+          } else {
+            if (iLen - 4 === i) {
+              p[3] = p[2];
+            } else if (!i) {
+              p[0] = {x: +pathCoordinates[i], y: +pathCoordinates[i + 1]};
+            }
+          }
+
+          path.curve(
+            (t * (-p[0].x + 6 * p[1].x + p[2].x) / 6) + (c * p[2].x),
+            (t * (-p[0].y + 6 * p[1].y + p[2].y) / 6) + (c * p[2].y),
+            (t * (p[1].x + 6 * p[2].x - p[3].x) / 6) + (c * p[2].x),
+            (t * (p[1].y + 6 * p[2].y - p[3].y) / 6) + (c * p[2].y),
+            p[2].x,
+            p[2].y
+          );
+        }
+
+        return path;
+      };
     };
 
   }(window, document, Chartist));
@@ -2347,7 +2455,7 @@
       showArea: false,
       // The base for the area chart that will be used to close the area shape (is normally 0)
       areaBase: 0,
-      // Specify if the lines should be smoothed (Catmull-Rom-Splines will be used)
+      // Specify if the lines should be smoothed. This value can be true or false where true will result in smoothing using the default smoothing interpolation function Chartist.Interpolation.cardinal and false results in Chartist.Interpolation.none. You can also choose other smoothing / interpolation functions available in the Chartist.Interpolation module, or write your own interpolation function. Check the examples for a brief description.
       lineSmooth: true,
       // Overriding the natural low of the chart allows you to zoom in or limit the charts lowest displayed value
       low: undefined,
@@ -2505,20 +2613,9 @@
 
         // TODO: Nicer handling of conditions, maybe composition?
         if (options.showLine || options.showArea) {
-          var path = new Chartist.Svg.Path().move(pathCoordinates[0], pathCoordinates[1]);
-
-          // If smoothed path and path has more than two points then use catmull rom to bezier algorithm
-          if (options.lineSmooth && pathCoordinates.length > 4) {
-
-            var cr = Chartist.catmullRom2bezier(pathCoordinates);
-            for(var k = 0; k < cr.length; k++) {
-              Chartist.Svg.Path.prototype.curve.apply(path, cr[k]);
-            }
-          } else {
-            for(var l = 3; l < pathCoordinates.length; l += 2) {
-              path.line(pathCoordinates[l - 1], pathCoordinates[l]);
-            }
-          }
+          var smoothing = typeof options.lineSmooth === 'function' ?
+            options.lineSmooth : (options.lineSmooth ? Chartist.Interpolation.cardinal() : Chartist.Interpolation.none()),
+            path = smoothing(pathCoordinates);
 
           if(options.showLine) {
             var line = seriesGroups[seriesIndex].elem('path', {
@@ -2613,6 +2710,20 @@
      *
      * // In the global name space Chartist we call the Line function to initialize a line chart. As a first parameter we pass in a selector where we would like to get our chart created. Second parameter is the actual data object and as a third parameter we pass in our options
      * new Chartist.Line('.ct-chart', data, options);
+     *
+     * @example
+     * // Use specific interpolation function with configuration from the Chartist.Interpolation module
+     *
+     * var chart = new Chartist.Line('.ct-chart', {
+     *   labels: [1, 2, 3, 4, 5],
+     *   series: [
+     *     [1, 1, 8, 1, 7]
+     *   ]
+     * }, {
+     *   lineSmooth: Chartist.Interpolation.cardinal({
+     *     tension: 0.2
+     *   })
+     * });
      *
      * @example
      * // Create a line chart with responsive options
@@ -2739,9 +2850,11 @@
       classNames: {
         chart: 'ct-chart-bar',
         label: 'ct-label',
+        labelExtra: [],
         labelGroup: 'ct-labels',
         series: 'ct-series',
         bar: 'ct-bar',
+        barExtra: '',
         grid: 'ct-grid',
         gridGroup: 'ct-grids',
         vertical: 'ct-vertical',
@@ -2927,12 +3040,12 @@
           positions[labelAxis.counterUnits.pos + '2'] = options.stackBars ? stackedBarValues[valueIndex] : projected[labelAxis.counterUnits.pos];
 
           var classToApply = '';
-          if( Array.isArray(options.classNames.bar) ){
-            classToApply = options.classNames.bar[valueIndex];
+          if( Array.isArray(options.classNames.barExtra) ){
+            classToApply = options.classNames.barExtra[valueIndex] + ' ' + options.classNames.bar;
           }else{
             classToApply = options.classNames.bar;
           }
-          
+
           bar = seriesGroups[seriesIndex].elem('line', positions, classToApply).attr({
             'value': value,
             'meta': Chartist.getMetaData(series, valueIndex)

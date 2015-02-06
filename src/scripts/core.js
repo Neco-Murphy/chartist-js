@@ -658,10 +658,13 @@ var Chartist = {
         ], eventEmitter);
       }
 
+      options.classNames.labelExtra = options.classNames.labelExtra || [];
+
       if(axisOptions.showLabel) {
         Chartist.createLabel(projectedValue, index, labelValues, axis, axisOptions.offset, axis.labelOffset, labelGroup, [
           options.classNames.label,
-          options.classNames[axis.units.dir]
+          options.classNames[axis.units.dir],
+          options.classNames.labelExtra[index]
         ], useForeignObject, eventEmitter);
       }
     });

@@ -71,9 +71,11 @@
     classNames: {
       chart: 'ct-chart-bar',
       label: 'ct-label',
+      labelExtra: [],
       labelGroup: 'ct-labels',
       series: 'ct-series',
       bar: 'ct-bar',
+      barExtra: '',
       grid: 'ct-grid',
       gridGroup: 'ct-grids',
       vertical: 'ct-vertical',
@@ -258,7 +260,14 @@
         positions[labelAxis.counterUnits.pos + '1'] = options.stackBars ? previousStack : zeroPoint;
         positions[labelAxis.counterUnits.pos + '2'] = options.stackBars ? stackedBarValues[valueIndex] : projected[labelAxis.counterUnits.pos];
 
-        bar = seriesGroups[seriesIndex].elem('line', positions, options.classNames.bar).attr({
+        var classToApply = '';
+        if( Array.isArray(options.classNames.barExtra) ){
+          classToApply = options.classNames.barExtra[valueIndex] + ' ' + options.classNames.bar;
+        }else{
+          classToApply = options.classNames.bar;
+        }
+        
+        bar = seriesGroups[seriesIndex].elem('line', positions, classToApply).attr({
           'value': value,
           'meta': Chartist.getMetaData(series, valueIndex)
         }, Chartist.xmlNs.uri);
