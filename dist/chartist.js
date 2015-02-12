@@ -635,6 +635,7 @@
           style: 'overflow: visible;'
         }, positionalData));
       } else {
+        positionalData[axis.units.pos] = positionalData[axis.units.pos] + projectedValue.len/2 - 5;
         labelElement = group.elem('text', positionalData, classes.join(' ')).text(labels[index]);
       }
 
